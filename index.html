@@ -18,9 +18,19 @@
 </style>
 </head>
 <body>
+<h1>Mitgliederprüfung</h1>
+<p class="info">Alles läuft lokal in diesem Browser, es werden keine Daten ins Internet gesendet.
+Es werden nur Hashes gelesen, keine Namen oder Geburtstage.</p>
 
 <section>
-  <h2>Mitglied prüfen</h2>
+  <h2>1. Hash-Liste</h2>
+  <div class="msg info" id="count">Lade Hash-Liste …</div>
+  <input type="file" id="file" accept=".txt" style="display:none">
+  <button class="secondary" id="fallback" style="display:none" onclick="document.getElementById('file').click()">Liste manuell laden</button>
+</section>
+
+<section>
+  <h2>2. Mitglied prüfen</h2>
   <label for="cn">Name</label><input type="text" id="cn" autocomplete="off">
   <label for="cb">Geburtsdatum</label><input type="date" id="cb">
   <button onclick="check()">Prüfen</button>
