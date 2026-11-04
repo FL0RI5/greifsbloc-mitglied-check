@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mitgliederprüfung</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 24px auto; padding: 0 16px; color: #222; background: #fafafa; }
+  h1 { font-size: 1.4rem; }
+  section { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  h2 { font-size: 1.05rem; margin-top: 0; }
+  label { display: block; margin: 10px 0 4px; font-size: .9rem; }
+  input[type=text], input[type=date], textarea { width: 100%; box-sizing: border-box; padding: 8px; font-size: 1rem; border: 1px solid #bbb; border-radius: 6px; }
+  textarea { font-family: monospace; font-size: .75rem; min-height: 110px; }
+  button { margin-top: 12px; margin-right: 8px; padding: 9px 16px; font-size: 1rem; border: 0; border-radius: 6px; background: #2457c5; color: #fff; cursor: pointer; }
+  button.secondary { background: #e4e7ee; color: #222; }
+  .msg { margin-top: 12px; font-weight: 600; }
+  .ok { color: #1a7f37; } .bad { color: #b42318; } .info { color: #555; font-weight: normal; font-size: .9rem; }
+</style>
+</head>
+<body>
+<h1>Mitgliederprüfung</h1>
+<p class="info">Alles läuft lokal in diesem Browser, es werden keine Daten ins Internet gesendet.
+Gespeichert werden nur Hashes, keine Namen oder Geburtstage.</p>
+
+<section>
+  <h2>1. Hash-Liste</h2>
+  <p class="info">Lade zuerst deine gespeicherte Liste (falls vorhanden). Nach Änderungen unbedingt wieder speichern.</p>
+  <textarea id="list" placeholder="Hier stehen die Hashes, ein Eintrag pro Zeile"></textarea>
+  <input type="file" id="file" accept=".txt" style="display:none">
+  <button class="secondary" onclick="document.getElementById('file').click()">Liste laden</button>
+  <button onclick="saveList()">Liste speichern</button>
+  <div class="msg info" id="count"></div>
+</section>
+
+<section>
+  <h2>2. Mitglied prüfen</h2>
+  <label for="cn">Name</label><input type="text" id="cn" autocomplete="off">
+  <label for="cb">Geburtsdatum</label><input type="date" id="cb">
+  <button onclick="check()">Prüfen</button>
+  <div class="msg" id="cres"></div>
+</section>
+
+<section>
+  <h2>3. Mitglied hinzufügen</h2>
+  <label for="an">Name</label><input type="text" id="an" autocomplete="off">
+  <label for="ab">Geburtsdatum</label><input type="date" id="ab">
+  <button onclick="addOne()">Hinzufügen</button>
+  <div class="msg" id="ares"></div>
+
+  <label for="bulk" style="margin-top:20px">Mehrere auf einmal (eine Zeile pro Person: <code>Name;TT.MM.JJJJ</code>)</label>
+  <textarea id="bulk" placeholder="Max Mustermann;24.12.1990&#10;Erika Musterfrau;01.03.1985"></textarea>
+  <button onclick="addBulk()">Alle hinzufügen</button>
+  <div class="msg" id="bres"></div>
+</section>
+
+<script>
+// Hinweis: Salt und Parameter dürfen nach dem ersten Einsatz nicht mehr geändert werden,
+// sonst passen die gespeicherten Hashes nicht mehr.
+const SALT = new TextEncoder().encode("verein-mitgliederpruefung-v1");
+const ITER = 600000;
+const $ = id => document.getElementById(id);
+
+function normName(s) { return s.normalize("NFC").trim().split(/\s+/).join(" ").toLowerCase(); }
+
+function normDate(s) {
+  s = s.trim(); let m;
+  if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/))) return valid(m[1], m[2], m[3]);
+  if ((m = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/))) return valid(m[3], m[2], m[1]);
+  throw new Error("Ungültiges Datum: " + s);
+}
+function valid(y, mo, d) {
+  const dt = new Date(Date.UTC(+y, +mo - 1, +d));
+  if (dt.getUTCFullYear() != +y || dt.getUTCMonth() != +mo - 1 || dt.getUTCDate() != +d)
+    throw new Error("Ungültiges Datum: " + d + "." + mo + "." + y);
+  return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+async function makeHash(name, date) {
+  if (!name.trim()) throw new Error("Bitte einen Namen eingeben.");
+  const payload = new TextEncoder().encode(normName(name) + "|" + normDate(date));
+  const key = await crypto.subtle.importKey("raw", payload, "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: SALT, iterations: ITER, hash: "SHA-256" }, key, 256);
+  return [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function getSet() { return new Set($("list").value.split("\n").map(l => l.trim()).filter(Boolean)); }
+function setList(set) { $("list").value = [...set].sort().join("\n"); updateCount(); }
+function updateCount() { $("count").textContent = getSet().size + " Mitglieder in der Liste"; }
+function show(id, text, ok) { const e = $(id); e.textContent = text; e.className = "msg " + (ok ? "ok" : "bad"); }
+
+async function check() {
+  try {
+    const h = await makeHash($("cn").value, $("cb").value);
+    getSet().has(h) ? show("cres", "✔ Mitglied bestätigt", true) : show("cres", "✘ Kein Mitglied mit diesen Angaben gefunden", false);
+  } catch (e) { show("cres", e.message, false); }
+}
+
+async function addOne() {
+  try {
+    const h = await makeHash($("an").value, $("ab").value);
+    const set = getSet();
+    if (set.has(h)) return show("ares", "Bereits vorhanden.", false);
+    set.add(h); setList(set);
+    show("ares", "Hinzugefügt. Bitte Liste speichern.", true);
+    $("an").value = ""; $("ab").value = "";
+  } catch (e) { show("ares", e.message, false); }
+}
+
+async function addBulk() {
+  const set = getSet(); let added = 0; const errors = [];
+  const lines = $("bulk").value.split("\n").map(l => l.trim()).filter(Boolean);
+  show("bres", "Wird berechnet …", true);
+  for (const [i, line] of lines.entries()) {
+    const parts = line.split(/[;,]/);
+    try {
+      if (parts.length < 2) throw new Error("Trennzeichen ; fehlt");
+      const h = await makeHash(parts[0], parts[1]);
+      if (!set.has(h)) { set.add(h); added++; }
+    } catch (e) { errors.push(`Zeile ${i + 1}: ${e.message}`); }
+  }
+  setList(set);
+  if (!errors.length) $("bulk").value = "";
+  show("bres", `${added} hinzugefügt. Bitte Liste speichern und die Klartext-Zeilen löschen.` +
+    (errors.length ? " Fehler: " + errors.join("; ") : ""), errors.length === 0);
+}
+
+function saveList() {
+  const blob = new Blob([[...getSet()].sort().join("\n") + "\n"], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "mitglieder_hashes.txt"; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+$("file").addEventListener("change", e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { $("list").value = r.result.trim(); updateCount(); };
+  r.readAsText(f);
+});
+$("list").addEventListener("input", updateCount);
+updateCount();
+</script>
+</body>
+</html>
