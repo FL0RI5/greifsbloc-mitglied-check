@@ -59,7 +59,7 @@ def main() -> None:
     if not args:
         sys.exit(__doc__)
     cmd = args[0]
-
+    print(args)
     try:
         if cmd == "add" and len(args) == 3:
             hashes = load_hashes()
