@@ -27,7 +27,7 @@ Es werden nur Hashes gelesen, keine Namen oder Geburtstage.</p>
 
 
 <section>
-  <h2>2. Mitglied prüfen</h2>
+  <h2>Mitglied prüfen</h2>
   <label for="cn">Name</label><input type="text" id="cn" autocomplete="off">
   <label for="cb">Geburtsdatum</label><input type="date" id="cb">
   <button onclick="check()">Prüfen</button>
@@ -89,17 +89,6 @@ async function check() {
     hashes.has(h) ? show("cres", "✔ Mitglied bestätigt", true) : show("cres", "✘ Kein Mitglied mit diesen Angaben gefunden", false);
   } catch (e) { show("cres", e.message, false); }
 }
-
-$("file").addEventListener("change", e => {
-  const f = e.target.files[0]; if (!f) return;
-  const r = new FileReader();
-  r.onload = () => {
-    hashes = new Set(r.result.split("\n").map(l => l.trim()).filter(Boolean));
-    $("count").textContent = hashes.size + " Mitglieder geladen (" + f.name + ")";
-    $("count").className = "msg info";
-  };
-  r.readAsText(f);
-});
 
 loadList();
 </script>
