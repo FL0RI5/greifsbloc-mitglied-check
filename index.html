@@ -85,11 +85,24 @@ async function loadList() {
 }
 
 async function check() {
+  const result = $("cres");
+  result.textContent = "Prüfung läuft …";
+  result.className = "msg info";
+
   try {
     if (!hashes.size) return show("cres", "Keine Hash-Liste geladen.", false);
-    const h = await makeHash($("cn").value, $("cb").value);
-    hashes.has(h) ? show("cres", "✔ Mitglied bestätigt", true) : show("cres", "✘ Kein Mitglied mit diesen Angaben gefunden", false);
-  } catch (e) { show("cres", e.message, false); }
+
+    const [h] = await Promise.all([
+      makeHash($("cn").value, $("cb").value),
+      new Promise(resolve => setTimeout(resolve, 150))
+    ]);
+
+    hashes.has(h)
+      ? show("cres", "✔ Mitglied bestätigt", true)
+      : show("cres", "✘ Kein Mitglied mit diesen Angaben gefunden", false);
+  } catch (e) {
+    show("cres", e.message, false);
+  }
 }
 
 loadList();
