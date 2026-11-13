@@ -40,7 +40,7 @@ def normalize_birthday(text: str) -> str:
 
 def make_hash(name: str, birthday: str) -> str:
     payload = f"{normalize_name(name)}|{normalize_birthday(birthday)}".encode("utf-8")
-    return hashlib.scrypt(payload, salt=SALT, n=2**15, r=8, p=1, dklen=32).hex()
+    return hashlib.scrypt(payload, salt=SALT, n=2**15, r=8, p=1, maxmem=67108864, dklen=32).hex()
 
 
 def load_hashes() -> set[str]:
